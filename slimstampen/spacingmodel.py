@@ -91,8 +91,7 @@ class SpacingModel(object):
             alpha = self.estimate_alpha(encounters, activation, response, alpha)
 
             # Update decay estimates of previous encounters
-            for encounter in encounters:
-                encounter = encounter._replace(decay = self.calculate_decay(encounter.activation, alpha))
+            encounters = [encounter._replace(decay = self.calculate_decay(encounter.activation, alpha)) for encounter in encounters]
 
         return(alpha)
 
@@ -115,9 +114,7 @@ class SpacingModel(object):
             alpha = self.estimate_alpha(encounters, activation, response, alpha)
 
             # Update decay estimates of previous encounters
-            for encounter in encounters:
-                encounter = encounter._replace(decay = self.calculate_decay(encounter.activation, alpha))
-
+            encounters = [encounter._replace(decay = self.calculate_decay(encounter.activation, alpha)) for encounter in encounters]
 
         return(self.calculate_activation_from_encounters(encounters, time))
 
@@ -262,10 +259,6 @@ class SpacingModel(object):
         dat.index = dat.index + 1
 
         # Save to CSV file
-        dat.to_csv(path)
+        dat.to_csv(path, encoding='UTF-8')
 
         return(dat)
-
-
-
-
