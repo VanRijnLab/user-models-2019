@@ -1,0 +1,178 @@
+---
+API: 2.1
+OpenSesame: 3.2.8b1
+Platform: posix
+---
+set width 1024
+set uniform_coordinates yes
+set title "New experiment"
+set subject_parity even
+set subject_nr 0
+set start experiment
+set sound_sample_size -16
+set sound_freq 48000
+set sound_channels 2
+set sound_buf_size 1024
+set sampler_backend legacy
+set round_decimals 2
+set mouse_backend legacy
+set keyboard_backend legacy
+set height 768
+set fullscreen no
+set form_clicks no
+set foreground white
+set font_underline no
+set font_size 18
+set font_italic no
+set font_family mono
+set font_bold no
+set experiment_path "/home/maarten/Documents/PhD/usermodels"
+set disable_garbage_collection yes
+set description "The main experiment item"
+set coordinates uniform
+set compensation 0
+set color_backend legacy
+set clock_backend legacy
+set canvas_backend legacy
+set background black
+
+define sequence experiment
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run slimstampen_setup always
+	run instructions always
+	run prepare_study_session always
+	run while_there_is_time_left always
+	run save_data always
+
+define sketchpad instructions
+	set start_response_interval no
+	set reset_variables no
+	set duration keypress
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=serif font_italic=no font_size=32 html=yes show_if=always text="Instructions go here. Press any key to begin." x=0 y=0 z_index=0
+
+define inline_script prepare_study_session
+	set description "Executes Python code"
+	___run__
+	# Start the clock
+	var.session_start_time = clock.time()
+	
+	# Session will run until time_up == True
+	var.time_up = False
+	
+	# Keep track of trial number
+	var.trial_num = 1
+	__end__
+	___prepare__
+	__end__
+
+define inline_script present_trial
+	set description "Executes Python code"
+	___run__
+	trial_start_time = clock.time()
+	
+	# Get next fact from the model
+	next_fact, new = m.get_next_fact(current_time = trial_start_time)
+	prompt = next_fact.question
+	answer = next_fact.answer
+	
+	# Show prompt
+	my_canvas = Canvas()
+	my_canvas.text(prompt, font_size = 30)
+	if new:
+		my_canvas.text(answer, y = 50, font_size = 20)
+	my_canvas.prepare()
+	my_canvas.show()
+	
+	# Listen for keyboard input and show keypresses on screen
+	my_canvas_typing = Canvas()
+	my_keyboard = Keyboard()
+	keyboard_response = ""
+	rt = float("inf")
+	
+	while True:
+		key, time = my_keyboard.get_key()
+		
+		if key == "return":
+			rt = clock.time() - trial_start_time
+			break
+			
+		if key == "backspace":
+			keyboard_response = keyboard_response[:-1]
+		else:
+			keyboard_response += my_keyboard.to_chr(key)
+		
+		my_canvas_typing.copy(my_canvas)
+		my_canvas_typing.text(keyboard_response, y = 100)
+		my_canvas_typing.prepare()
+		my_canvas_typing.show()
+	
+	# Check if the response is correct
+	correct = keyboard_response == answer
+	
+	# Log response
+	response = Response(next_fact, trial_start_time, rt, correct)
+	m.register_response(response) 
+	
+	# Clear the screen between trials
+	my_canvas.clear()
+	my_canvas.prepare()
+	my_canvas.show()
+	clock.sleep(500)
+	
+	# Check if time is up
+	if clock.time() - var.session_start_time >= 60000:
+		var.time_up = True
+		
+	# Increment trial number
+	var.trial_num += 1
+	__end__
+	set _prepare ""
+
+define inline_script save_data
+	set description "Executes Python code"
+	___run__
+	m.export_data("opensesame_dat.csv")
+	__end__
+	set _prepare ""
+
+define inline_script slimstampen_setup
+	set description "Executes Python code"
+	___run__
+	from slimstampen.spacingmodel import SpacingModel, Fact, Response
+	
+	m = SpacingModel()
+	
+	# Add some study facts to the model (you could also read them from a CSV file)
+	facts = [Fact(1, "hello", "bonjour"),
+			Fact(2, "dog", "chien"),
+			Fact(3, "cat", "chat"),
+			Fact(4, "computer", "ordinateur"),
+			Fact(5, "house", "maison"),
+			Fact(6, "car", "voiture"),
+			Fact(7, "fish", "poisson"),
+			Fact(8, "bottle", "bouteille")]
+	
+	for fact in facts:
+		m.add_fact(fact)
+	__end__
+	set _prepare ""
+
+define sequence trial_sequence_1
+	set flush_keyboard yes
+	set description "Runs a number of items in sequence"
+	run present_trial always
+
+define loop while_there_is_time_left
+	set source table
+	set repeat 1000
+	set order random
+	set description "Repeatedly runs another item"
+	set cycles 1
+	set continuous no
+	set break_if_on_first yes
+	set break_if "[time_up] = yes"
+	setcycle 0 ignore_this_variable 1
+	run trial_sequence_1
+
